@@ -27,6 +27,9 @@ namespace PathFinding
         public Tile[] Tiles { get; private set; }
 
         private IEnumerator _pathRoutine;
+        private bool _isPaused = false;
+        private bool _stepNext = false;
+        private bool _isRunning = false;
 
         private void Awake()
         {
@@ -87,12 +90,73 @@ namespace PathFinding
             }
         }
 
+        private void OnGUI()
+        {
+            // Only show control buttons when pathfinding is running
+            if (!_isRunning) return;
+            // Set GUI style for larger buttons
+            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button);
+            buttonStyle.fontSize = 20;
+            buttonStyle.padding = new RectOffset(20, 20, 10, 10);
+
+            float buttonWidth = 120;
+            float buttonHeight = 50;
+            float buttonSpacing = 10;
+            float startX = 10;
+            float startY = 10;
+
+            // Pause/Resume Button
+            if (!_isPaused)
+            {
+                if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), "暂停 (P)", buttonStyle))
+                {
+                    _isPaused = true;
+                    Debug.Log("Paused");
+                }
+            }
+            else
+            {
+                if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), "继续 (P)", buttonStyle))
+                {
+                    _isPaused = false;
+                    Debug.Log("Resumed");
+                }
+            }
+
+            // Next Step Button (only enabled when paused)
+            GUI.enabled = _isPaused;
+            if (GUI.Button(new Rect(startX + buttonWidth + buttonSpacing, startY, buttonWidth, buttonHeight), "下一步 (N)", buttonStyle))
+            {
+                _stepNext = true;
+            }
+            GUI.enabled = true;
+
+            // Continue Button (only enabled when paused)
+            GUI.enabled = _isPaused;
+            if (GUI.Button(new Rect(startX + (buttonWidth + buttonSpacing) * 2, startY, buttonWidth, buttonHeight), "继续 (C)", buttonStyle))
+            {
+                _isPaused = false;
+                Debug.Log("Continued");
+            }
+            GUI.enabled = true;
+
+            // Status display
+            GUIStyle statusStyle = new GUIStyle(GUI.skin.label);
+            statusStyle.fontSize = 16;
+            statusStyle.normal.textColor = Color.white;
+            string status = _isPaused ? "状态: 已暂停" : "状态: 运行中";
+            GUI.Label(new Rect(startX, startY + buttonHeight + 10, 300, 30), status, statusStyle);
+        }
+
         private void StopPathCoroutine()
         {
             if (_pathRoutine != null)
             {
                 StopCoroutine(_pathRoutine);
                 _pathRoutine = null;
+                _isRunning = false;
+                _isPaused = false;
+                _stepNext = false;
             }
         }
 
@@ -137,15 +201,24 @@ namespace PathFinding
         private IEnumerator FindPath(Tile start, Tile end, Func<TileGrid, Tile, Tile, List<IVisualStep>, List<Tile>> pathFindingFunc)
         {
             ResetGrid();
+            _isRunning = true;
+            _isPaused = true;
+            _stepNext = false;
 
             List<IVisualStep> steps = new List<IVisualStep>();
             pathFindingFunc(this, start, end, steps);
 
             foreach (var step in steps)
             {
+                yield return new WaitUntil(()=> !_isPaused|| _stepNext);
+                if (_stepNext)
+                {
+                    _stepNext = false;
+                }
                 step.Execute();
-                yield return new WaitForFixedUpdate();
             }
+            
+            _isRunning = false;
         }
 
         public Tile GetTile(int row, int col)
