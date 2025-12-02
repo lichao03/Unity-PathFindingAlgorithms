@@ -30,6 +30,8 @@ namespace PathFinding
         private bool _isPaused = false;
         private bool _stepNext = false;
         private bool _isRunning = false;
+        private int _currentStep = 0;
+        private int _totalSteps = 0;
 
         private void Awake()
         {
@@ -94,33 +96,24 @@ namespace PathFinding
         {
             // Only show control buttons when pathfinding is running
             if (!_isRunning) return;
+            
             // Set GUI style for larger buttons
             GUIStyle buttonStyle = new GUIStyle(GUI.skin.button);
             buttonStyle.fontSize = 20;
             buttonStyle.padding = new RectOffset(20, 20, 10, 10);
 
-            float buttonWidth = 120;
+            float buttonWidth = 150;
             float buttonHeight = 50;
             float buttonSpacing = 10;
             float startX = 10;
             float startY = 10;
 
-            // Pause/Resume Button
-            if (!_isPaused)
+            // Pause/Resume Toggle Button
+            string pauseButtonText = _isPaused ? "继续 (C)" : "暂停 (P)";
+            if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), pauseButtonText, buttonStyle))
             {
-                if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), "暂停 (P)", buttonStyle))
-                {
-                    _isPaused = true;
-                    Debug.Log("Paused");
-                }
-            }
-            else
-            {
-                if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), "继续 (P)", buttonStyle))
-                {
-                    _isPaused = false;
-                    Debug.Log("Resumed");
-                }
+                _isPaused = !_isPaused;
+                Debug.Log(_isPaused ? "Paused" : "Resumed");
             }
 
             // Next Step Button (only enabled when paused)
@@ -131,21 +124,16 @@ namespace PathFinding
             }
             GUI.enabled = true;
 
-            // Continue Button (only enabled when paused)
-            GUI.enabled = _isPaused;
-            if (GUI.Button(new Rect(startX + (buttonWidth + buttonSpacing) * 2, startY, buttonWidth, buttonHeight), "继续 (C)", buttonStyle))
-            {
-                _isPaused = false;
-                Debug.Log("Continued");
-            }
-            GUI.enabled = true;
-
             // Status display
             GUIStyle statusStyle = new GUIStyle(GUI.skin.label);
             statusStyle.fontSize = 16;
             statusStyle.normal.textColor = Color.white;
             string status = _isPaused ? "状态: 已暂停" : "状态: 运行中";
             GUI.Label(new Rect(startX, startY + buttonHeight + 10, 300, 30), status, statusStyle);
+            
+            // Step counter display
+            string stepInfo = $"步数: {_currentStep} / {_totalSteps}";
+            GUI.Label(new Rect(startX, startY + buttonHeight + 40, 300, 30), stepInfo, statusStyle);
         }
 
         private void StopPathCoroutine()
@@ -157,6 +145,7 @@ namespace PathFinding
                 _isRunning = false;
                 _isPaused = false;
                 _stepNext = false;
+                _currentStep = 0; // Reset step counter
             }
         }
 
@@ -204,9 +193,12 @@ namespace PathFinding
             _isRunning = true;
             _isPaused = true;
             _stepNext = false;
+            _currentStep = 0;
 
             List<IVisualStep> steps = new List<IVisualStep>();
             pathFindingFunc(this, start, end, steps);
+
+            _totalSteps = steps.Count;
 
             foreach (var step in steps)
             {
@@ -216,6 +208,8 @@ namespace PathFinding
                     _stepNext = false;
                 }
                 step.Execute();
+
+                _currentStep++;
             }
             
             _isRunning = false;
