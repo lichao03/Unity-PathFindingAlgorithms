@@ -137,10 +137,13 @@ namespace PathFinding
         /// </summary>
         private void OnGUI()
         {
-            if (!_isRunning) return;
+            DrawAlgorithmSelectionButtons();
             
-            DrawControlButtons();
-            DrawStatusInfo();
+            if (_isRunning)
+            {
+                DrawControlButtons();
+                DrawStatusInfo();
+            }
         }
 
 #if UNITY_EDITOR
@@ -329,35 +332,8 @@ namespace PathFinding
         /// </summary>
         private void HandlePathfindingInput()
         {
-            Tile start = GetStartTile();
-            Tile end = GetEndTile();
-
-            // 验证起点终点有效性
-            if (start == null || end == null)
-            {
-                ValidateStartEndPositions();
-                start = GetStartTile();
-                end = GetEndTile();
-            }
-
-            // 选择寻路算法
-            if (Input.GetKeyDown(KeyCode.Alpha1))
-            {
-                StartPathfinding(start, end, PathFinder.FindPath_BFS);
-            }
-            else if (Input.GetKeyDown(KeyCode.Alpha2))
-            {
-                StartPathfinding(start, end, PathFinder.FindPath_Dijkstra);
-            }
-            else if (Input.GetKeyDown(KeyCode.Alpha3))
-            {
-                StartPathfinding(start, end, PathFinder.FindPath_AStar);
-            }
-            else if (Input.GetKeyDown(KeyCode.Alpha4))
-            {
-                StartPathfinding(start, end, PathFinder.FindPath_GreedyBestFirstSearch);
-            }
-            else if (Input.GetKeyDown(KeyCode.Escape))
+            // 只保留ESC重置功能
+            if (Input.GetKeyDown(KeyCode.Escape))
             {
                 StopPathfinding();
                 ResetGrid();
@@ -425,6 +401,8 @@ namespace PathFinding
                 
                 step.Execute();
                 _currentStep++;
+                if (!_isPaused)
+                    yield return new WaitForSeconds(0.3f);// 可调整的延时
             }
             
             _isRunning = false;
@@ -583,6 +561,64 @@ namespace PathFinding
             // 步数显示
             string stepInfo = $"步数: {_currentStep} / {_totalSteps}";
             GUI.Label(new Rect(startX, startY + 30, 300, 30), stepInfo, statusStyle);
+        }
+
+        /// <summary>
+        /// 绘制算法选择按钮
+        /// </summary>
+        private void DrawAlgorithmSelectionButtons()
+        {
+            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button)
+            {
+                fontSize = 18,
+                padding = new RectOffset(15, 15, 10, 10)
+            };
+
+            const float buttonWidth = 180;
+            const float buttonHeight = 45;
+            const float buttonSpacing = 8;
+            float startX = Screen.width - buttonWidth - 10; // 右侧对齐
+            float startY = 10;
+
+            // 如果正在运行，禁用算法选择按钮
+            GUI.enabled = !_isRunning;
+
+            // BFS 算法按钮
+            if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), "广度优先 (BFS)", buttonStyle))
+            {
+                StartPathfinding(GetStartTile(), GetEndTile(), PathFinder.FindPath_BFS);
+            }
+            startY += buttonHeight + buttonSpacing;
+
+            // Dijkstra 算法按钮
+            if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), "Dijkstra 算法", buttonStyle))
+            {
+                StartPathfinding(GetStartTile(), GetEndTile(), PathFinder.FindPath_Dijkstra);
+            }
+            startY += buttonHeight + buttonSpacing;
+
+            // A* 算法按钮
+            if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), "A* 算法", buttonStyle))
+            {
+                StartPathfinding(GetStartTile(), GetEndTile(), PathFinder.FindPath_AStar);
+            }
+            startY += buttonHeight + buttonSpacing;
+
+            // Greedy 算法按钮
+            if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), "贪婪优先搜索", buttonStyle))
+            {
+                StartPathfinding(GetStartTile(), GetEndTile(), PathFinder.FindPath_GreedyBestFirstSearch);
+            }
+            startY += buttonHeight + buttonSpacing;
+
+            GUI.enabled = true;
+
+            // 重置按钮（始终可用）
+            if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), "重置 (ESC)", buttonStyle))
+            {
+                StopPathfinding();
+                ResetGrid();
+            }
         }
 
         #endregion

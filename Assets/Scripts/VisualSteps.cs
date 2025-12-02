@@ -78,7 +78,11 @@
         public override void Execute()
         {
             _tile.SetColor(_tile.Grid.TileColor_Visited);
+            // 保留Cost的显示
+            if (_tile.Cost > 0)
+            {
+                _tile.SetText(_tile.Cost.ToString());
+            }
         }
     }
 }
-
