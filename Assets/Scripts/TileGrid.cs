@@ -11,10 +11,18 @@ namespace PathFinding
         private const int TileWeight_Expensive = 50;
         private const int TileWeight_Infinity = int.MaxValue;
 
-        public int Rows;
-        public int Cols;
+        [Header("地图设置")]
+        [Tooltip("地图大小 (x=列数, y=行数)")]
+        public Vector2Int MapSize = new Vector2Int(15, 15);
         public GameObject TilePrefab;
 
+        [Header("起点和终点设置")]
+        [Tooltip("起点位置 (x=列号, y=行号，从0开始)")]
+        public Vector2Int StartPosition = new Vector2Int(2, 9);
+        [Tooltip("终点位置 (x=列号, y=行号，从0开始)")]
+        public Vector2Int EndPosition = new Vector2Int(14, 7);
+
+        [Header("颜色设置")]
         public Color TileColor_Default = new Color(0.86f, 0.83f, 0.83f);
         public Color TileColor_Expensive = new Color(0.19f, 0.65f, 0.43f);
         public Color TileColor_Infinity = new Color(0.37f, 0.37f, 0.37f);
@@ -27,18 +35,18 @@ namespace PathFinding
         public Tile[] Tiles { get; private set; }
 
         private IEnumerator _pathRoutine;
-        private bool _isPaused = false;
-        private bool _stepNext = false;
-        private bool _isRunning = false;
-        private int _currentStep = 0;
-        private int _totalSteps = 0;
+        private bool _isPaused;
+        private bool _stepNext;
+        private bool _isRunning;
+        private int _currentStep;
+        private int _totalSteps;
 
         private void Awake()
         {
-            Tiles = new Tile[Rows * Cols];
-            for (int r = 0; r < Rows; r++)
+            Tiles = new Tile[MapSize.y * MapSize.x];
+            for (int r = 0; r < MapSize.y; r++)
             {
-                for (int c = 0; c < Cols; c++)
+                for (int c = 0; c < MapSize.x; c++)
                 {
                     Tile tile = new Tile(this, r, c, TileWeight_Default);
                     tile.InitGameObject(transform, TilePrefab);
@@ -48,16 +56,28 @@ namespace PathFinding
                 }
             }
 
-
             CreateExpensiveArea(3, 3, 9, 1, TileWeight_Expensive);
             CreateExpensiveArea(3, 11, 1, 9, TileWeight_Expensive);
+            
+            // Validate and clamp start/end positions
+            ValidateStartEndPositions();
+            
             ResetGrid();
         }
 
         private void Update()
         {
-            Tile start = GetTile(9, 2);
-            Tile end = GetTile(7, 14);
+            // Get start and end tiles using public parameters
+            Tile start = GetTile(StartPosition.y, StartPosition.x);
+            Tile end = GetTile(EndPosition.y, EndPosition.x);
+
+            // Validate positions in case they were changed in inspector
+            if (start == null || end == null)
+            {
+                ValidateStartEndPositions();
+                start = GetTile(StartPosition.y, StartPosition.x);
+                end = GetTile(EndPosition.y, EndPosition.x);
+            }
 
             if (Input.GetKeyDown(KeyCode.Alpha1))
             {
@@ -87,10 +107,67 @@ namespace PathFinding
             {
                 StopPathCoroutine();
                 ResetGrid();
-                start.SetColor(TileColor_Start);
-                end.SetColor(TileColor_End);
             }
         }
+
+        /// <summary>
+        /// 验证并修正起点和终点的位置，确保它们在有效范围内
+        /// </summary>
+        private void ValidateStartEndPositions()
+        {
+            // Clamp start position to valid range
+            StartPosition.y = Mathf.Clamp(StartPosition.y, 0, MapSize.y - 1);
+            StartPosition.x = Mathf.Clamp(StartPosition.x, 0, MapSize.x - 1);
+
+            // Clamp end position to valid range
+            EndPosition.y = Mathf.Clamp(EndPosition.y, 0, MapSize.y - 1);
+            EndPosition.x = Mathf.Clamp(EndPosition.x, 0, MapSize.x - 1);
+
+            // Ensure start and end are not the same position
+            if (StartPosition.y == EndPosition.y && StartPosition.x == EndPosition.x)
+            {
+                // Move end to a different position
+                if (EndPosition.x < MapSize.x - 1)
+                {
+                    EndPosition.x++;
+                }
+                else if (EndPosition.y < MapSize.y - 1)
+                {
+                    EndPosition.y++;
+                }
+                else if (EndPosition.x > 0)
+                {
+                    EndPosition.x--;
+                }
+                else if (EndPosition.y > 0)
+                {
+                    EndPosition.y--;
+                }
+            }
+        }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// 在编辑器中修改参数时调用，用于实时更新起点终点显示
+        /// </summary>
+        private void OnValidate()
+        {
+            // Only process if in play mode and tiles are initialized
+            if (!Application.isPlaying || Tiles == null || Tiles.Length == 0)
+            {
+                return;
+            }
+
+            // Validate positions
+            ValidateStartEndPositions();
+
+            // Update grid display if not running pathfinding
+            if (!_isRunning)
+            {
+                ResetGrid();
+            }
+        }
+#endif
 
         private void OnGUI()
         {
@@ -185,6 +262,18 @@ namespace PathFinding
                         break;
                 }
             }
+
+            // Set start and end colors
+            Tile startTile = GetTile(StartPosition.y, StartPosition.x);
+            Tile endTile = GetTile(EndPosition.y, EndPosition.x);
+            if (startTile != null)
+            {
+                startTile.SetColor(TileColor_Start);
+            }
+            if (endTile != null)
+            {
+                endTile.SetColor(TileColor_End);
+            }
         }
 
         private IEnumerator FindPath(Tile start, Tile end, Func<TileGrid, Tile, Tile, List<IVisualStep>, List<Tile>> pathFindingFunc)
@@ -254,14 +343,14 @@ namespace PathFinding
 
         private bool IsInBounds(int row, int col)
         {
-            bool rowInRange = row >= 0 && row < Rows;
-            bool colInRange = col >= 0 && col < Cols;
+            bool rowInRange = row >= 0 && row < MapSize.y;
+            bool colInRange = col >= 0 && col < MapSize.x;
             return rowInRange && colInRange;
         }
 
         private int GetTileIndex(int row, int col)
         {
-            return row * Cols + col;
+            return row * MapSize.x + col;
         }
     }
 }
