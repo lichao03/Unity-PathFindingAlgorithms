@@ -6,6 +6,20 @@ using UnityEngine;
 namespace PathFinding
 {
     /// <summary>
+    /// 障碍区域配置
+    /// </summary>
+    [Serializable]
+    public class ObstacleArea
+    {
+        [Tooltip("起始位置 (x=列号, y=行号)")]
+        public Vector2Int StartPosition;
+        [Tooltip("区域大小 (x=宽度, y=高度)")]
+        public Vector2Int Size = Vector2Int.one;
+        [Tooltip("格子权重（代价）")]
+        public int Weight = 50;
+    }
+
+    /// <summary>
     /// 寻路算法可视化网格管理器
     /// 负责网格的初始化、寻路算法的执行控制、以及可视化展示
     /// </summary>
@@ -23,7 +37,7 @@ namespace PathFinding
 
         [Header("地图设置")]
         [Tooltip("地图大小 (x=列数, y=行数)")]
-        public Vector2Int MapSize = new Vector2Int(15, 15);
+        public Vector2Int MapSize = new Vector2Int(16, 12);
         public GameObject TilePrefab;
 
         [Header("起点和终点设置")]
@@ -31,6 +45,14 @@ namespace PathFinding
         public Vector2Int StartPosition = new Vector2Int(2, 9);
         [Tooltip("终点位置 (x=列号, y=行号，从0开始)")]
         public Vector2Int EndPosition = new Vector2Int(14, 7);
+
+        [Header("障碍区域设置")]
+        [Tooltip("障碍区域列表")]
+        public List<ObstacleArea> ObstacleAreas = new List<ObstacleArea>
+        {
+            new ObstacleArea { StartPosition = new Vector2Int(3, 3), Size = new Vector2Int(9, 1), Weight = 50 },
+            new ObstacleArea { StartPosition = new Vector2Int(11, 3), Size = new Vector2Int(1, 9), Weight = 50 }
+        };
 
         [Header("颜色设置")]
         public Color TileColor_Default = new Color(0.86f, 0.83f, 0.83f);
@@ -62,6 +84,9 @@ namespace PathFinding
         private bool _isRunning;
         private int _currentStep;
         private int _totalSteps;
+        
+        // 标记是否已初始化
+        private bool _isInitialized;
 
         #endregion
 
@@ -73,9 +98,22 @@ namespace PathFinding
         private void Awake()
         {
             InitializeGrid();
-            CreateObstacleAreas();
+            ApplyObstacleAreas();
             ValidateStartEndPositions();
             ResetGrid();
+            _isInitialized = true;
+        }
+
+        /// <summary>
+        /// 在编辑器和运行时都显示网格
+        /// </summary>
+        private void Start()
+        {
+            // 确保在运行时网格可见
+            if (Tiles != null)
+            {
+                ResetGrid();
+            }
         }
 
         /// <summary>
@@ -103,15 +141,64 @@ namespace PathFinding
         /// </summary>
         private void OnValidate()
         {
-            if (!Application.isPlaying || Tiles == null || Tiles.Length == 0)
+            // 在编辑器模式下也初始化网格
+            if (!Application.isPlaying)
+            {
+                // 延迟执行以确保所有字段都已设置
+                UnityEditor.EditorApplication.delayCall += () =>
+                {
+                    if (this != null && TilePrefab != null)
+                    {
+                        InitializeGridInEditor();
+                    }
+                };
+                return;
+            }
+
+            // 运行时的验证
+            if (Tiles == null || Tiles.Length == 0)
                 return;
 
             ValidateStartEndPositions();
 
             if (!_isRunning)
             {
+                ApplyObstacleAreas();
                 ResetGrid();
             }
+        }
+
+        /// <summary>
+        /// 编辑器模式下初始化网格
+        /// </summary>
+        private void InitializeGridInEditor()
+        {
+            if (Application.isPlaying || TilePrefab == null)
+                return;
+
+            // 清理旧的格子
+            ClearExistingTiles();
+
+            // 初始化新的格子
+            InitializeGrid();
+            ApplyObstacleAreas();
+            ValidateStartEndPositions();
+            ResetGrid();
+            _isInitialized = true;
+        }
+
+        /// <summary>
+        /// 清理现有的格子对象
+        /// </summary>
+        private void ClearExistingTiles()
+        {
+            // 清理transform下的所有子对象
+            while (transform.childCount > 0)
+            {
+                DestroyImmediate(transform.GetChild(0).gameObject);
+            }
+            
+            Tiles = null;
         }
 #endif
 
@@ -139,12 +226,28 @@ namespace PathFinding
         }
 
         /// <summary>
-        /// 创建障碍物区域（高代价区域）
+        /// 应用所有配置的障碍区域
         /// </summary>
-        private void CreateObstacleAreas()
+        private void ApplyObstacleAreas()
         {
-            CreateExpensiveArea(3, 3, 9, 1, TileWeight_Expensive);
-            CreateExpensiveArea(3, 11, 1, 9, TileWeight_Expensive);
+            if (Tiles == null || ObstacleAreas == null)
+                return;
+
+            // 首先重置所有格子权重为默认值
+            foreach (var tile in Tiles)
+            {
+                if (tile != null)
+                {
+                    tile.Weight = TileWeight_Default;
+                }
+            }
+
+            // 应用所有障碍区域
+            foreach (var area in ObstacleAreas)
+            {
+                CreateExpensiveArea(area.StartPosition.y, area.StartPosition.x, 
+                                   area.Size.x, area.Size.y, area.Weight);
+            }
         }
 
         /// <summary>
