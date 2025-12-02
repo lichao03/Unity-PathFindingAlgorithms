@@ -64,6 +64,14 @@ namespace PathFinding
         public Color TileColor_Visited = new Color(0.75f, 0.55f, 0.38f);
         public Color TileColor_Frontier = new Color(0.4f, 0.53f, 0.8f);
 
+        [Header("坐标轴设置")]
+        [Tooltip("是否显示行号和列号")]
+        public bool ShowAxisLabels = true;
+        [Tooltip("坐标轴标签字体大小")]
+        public int AxisLabelFontSize = 24;
+        [Tooltip("坐标轴标签颜色")]
+        public Color AxisLabelColor = Color.white;
+
         #endregion
 
         #region 公共属性
@@ -222,6 +230,50 @@ namespace PathFinding
                     tile.InitGameObject(transform, TilePrefab);
                     Tiles[GetTileIndex(row, col)] = tile;
                 }
+            }
+
+            // 创建坐标轴标签
+            if (ShowAxisLabels)
+            {
+                CreateAxisLabels();
+            }
+        }
+
+        /// <summary>
+        /// 创建坐标轴标签（行号和列号）
+        /// </summary>
+        private void CreateAxisLabels()
+        {
+            // 创建列号标签（顶部，X轴）
+            for (int col = 0; col < MapSize.x; col++)
+            {
+                GameObject labelObj = new GameObject($"ColLabel_{col}");
+                labelObj.transform.parent = transform;
+                labelObj.transform.localPosition = new Vector3(col, 1f, 0);
+                
+                TextMesh textMesh = labelObj.AddComponent<TextMesh>();
+                textMesh.text = col.ToString();
+                textMesh.fontSize = AxisLabelFontSize;
+                textMesh.color = AxisLabelColor;
+                textMesh.anchor = TextAnchor.MiddleCenter;
+                textMesh.alignment = TextAlignment.Center;
+                textMesh.characterSize = 0.1f;
+            }
+
+            // 创建行号标签（左侧，Y轴）
+            for (int row = 0; row < MapSize.y; row++)
+            {
+                GameObject labelObj = new GameObject($"RowLabel_{row}");
+                labelObj.transform.parent = transform;
+                labelObj.transform.localPosition = new Vector3(-1.5f, -row, 0);
+                
+                TextMesh textMesh = labelObj.AddComponent<TextMesh>();
+                textMesh.text = row.ToString();
+                textMesh.fontSize = AxisLabelFontSize;
+                textMesh.color = AxisLabelColor;
+                textMesh.anchor = TextAnchor.MiddleCenter;
+                textMesh.alignment = TextAlignment.Center;
+                textMesh.characterSize = 0.1f;
             }
         }
 
