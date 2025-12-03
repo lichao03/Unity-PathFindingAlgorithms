@@ -55,5 +55,10 @@ namespace PathFinding
         {
             return new Vector2(Col, Row);
         }
+        
+        public bool IsWalkable()
+        {
+            return Weight >= 0 && Weight < 40;
+        }
     }
 }

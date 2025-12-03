@@ -86,16 +86,19 @@ namespace PathFinding
                     }
 
                     // 如果邻居还没有被访问过
-                    if (!visited.Contains(neighbor))
+                    if (visited.Add(neighbor))
                     {
-                        // 将邻居加入优先队列，等待后续探索
-                        // 优先队列会根据 f(n) = g(n) + h(n) 自动排序
-                        frontier.Add(neighbor);
-                        visited.Add(neighbor);
-
-                        // 可视化：显示邻居加入到边界队列中（排除终点）
-                        if (neighbor != end)
+                        if (neighbor.IsWalkable())
                         {
+                            // 将邻居加入优先队列，等待后续探索
+                            // 优先队列会根据 f(n) = g(n) + h(n) 自动排序
+                            frontier.Add(neighbor);
+                            if (neighbor == end)
+                            {
+                                break;
+                            }
+                            
+                            // 可视化：显示邻居加入到边界队列中
                             outSteps.Add(new PushTileInFrontierStep(neighbor, neighbor.Cost, GetManhattanHeuristicCost(neighbor, end)));
                         }
                     }

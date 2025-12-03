@@ -26,6 +26,7 @@
         public override void Execute()
         {
             _tile.SetColor(_tile.Grid.TileColor_Start);
+            _tile.SetText("S", 60);
         }
     }
 
@@ -38,6 +39,7 @@
         public override void Execute()
         {
             _tile.SetColor(_tile.Grid.TileColor_End);
+            _tile.SetText("E", 60);
         }
     }
 
@@ -50,6 +52,7 @@
         public override void Execute()
         {
             _tile.SetColor(_tile.Grid.TileColor_Path);
+            _tile.SetText(_tile.Cost.ToString(), 60);
         }
     }
 
