@@ -96,6 +96,10 @@ namespace PathFinding
         // 标记是否已初始化
         private bool _isInitialized;
 
+        // 容器节点
+        private Transform _tilesContainer;
+        private Transform _axisLabelsContainer;
+
         #endregion
 
         #region Unity生命周期方法
@@ -222,6 +226,9 @@ namespace PathFinding
         /// </summary>
         private void InitializeGrid()
         {
+            // 创建容器节点
+            CreateContainerNodes();
+
             int totalTiles = MapSize.x * MapSize.y;
             Tiles = new Tile[totalTiles];
 
@@ -230,7 +237,7 @@ namespace PathFinding
                 for (int col = 0; col < MapSize.x; col++)
                 {
                     Tile tile = new Tile(this, row, col, TileWeight_Default);
-                    tile.InitGameObject(transform, TilePrefab);
+                    tile.InitGameObject(_tilesContainer, TilePrefab);
                     Tiles[GetTileIndex(row, col)] = tile;
                 }
             }
@@ -243,6 +250,69 @@ namespace PathFinding
         }
 
         /// <summary>
+        /// 创建容器节点
+        /// </summary>
+        private void CreateContainerNodes()
+        {
+            // 创建或获取 Tiles 容器
+            GameObject tilesObj = GameObject.Find("Tiles");
+            if (tilesObj == null || tilesObj.transform.parent != transform)
+            {
+                tilesObj = new GameObject("Tiles");
+                tilesObj.transform.parent = transform;
+                tilesObj.transform.localPosition = Vector3.zero;
+            }
+            _tilesContainer = tilesObj.transform;
+            
+            // 运行时清空 Tiles 容器下的所有子节点
+            if (Application.isPlaying)
+            {
+                ClearContainerChildren(_tilesContainer);
+            }
+
+            // 创建或获取 AxisLabels 容器
+            GameObject axisLabelsObj = GameObject.Find("AxisLabels");
+            if (axisLabelsObj == null || axisLabelsObj.transform.parent != transform)
+            {
+                axisLabelsObj = new GameObject("AxisLabels");
+                axisLabelsObj.transform.parent = transform;
+                axisLabelsObj.transform.localPosition = Vector3.zero;
+            }
+            _axisLabelsContainer = axisLabelsObj.transform;
+            
+            // 运行时清空 AxisLabels 容器下的所有子节点
+            if (Application.isPlaying)
+            {
+                ClearContainerChildren(_axisLabelsContainer);
+            }
+        }
+
+        /// <summary>
+        /// 清空容器下的所有子节点（运行时使用）
+        /// </summary>
+        private void ClearContainerChildren(Transform container)
+        {
+            if (container == null)
+                return;
+            
+            // 先收集所有子对象到列表中
+            List<GameObject> children = new List<GameObject>();
+            for (int i = 0; i < container.childCount; i++)
+            {
+                children.Add(container.GetChild(i).gameObject);
+            }
+            
+            // 然后统一删除
+            foreach (GameObject child in children)
+            {
+                if (child != null)
+                {
+                    Destroy(child);
+                }
+            }
+        }
+
+        /// <summary>
         /// 创建坐标轴标签（行号和列号）
         /// </summary>
         private void CreateAxisLabels()
@@ -251,7 +321,7 @@ namespace PathFinding
             for (int col = 0; col < MapSize.x; col++)
             {
                 GameObject labelObj = new GameObject($"ColLabel_{col}");
-                labelObj.transform.parent = transform;
+                labelObj.transform.parent = _axisLabelsContainer;
                 labelObj.transform.localPosition = new Vector3(col, 1f, 0);
                 
                 TextMesh textMesh = labelObj.AddComponent<TextMesh>();
@@ -267,7 +337,7 @@ namespace PathFinding
             for (int row = 0; row < MapSize.y; row++)
             {
                 GameObject labelObj = new GameObject($"RowLabel_{row}");
-                labelObj.transform.parent = transform;
+                labelObj.transform.parent = _axisLabelsContainer;
                 labelObj.transform.localPosition = new Vector3(-1.5f, -row, 0);
                 
                 TextMesh textMesh = labelObj.AddComponent<TextMesh>();
