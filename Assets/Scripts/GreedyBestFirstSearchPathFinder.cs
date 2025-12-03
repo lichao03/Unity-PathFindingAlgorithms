@@ -43,11 +43,12 @@ namespace PathFinding
                 {
                     if (!visited.Contains(neighbor))
                     {
-                        frontier.Add(neighbor);
+                        if(neighbor.Weight < 40)
+                            frontier.Add(neighbor);
                         visited.Add(neighbor);
                         neighbor.PrevTile = current;
 
-                        if (neighbor != end)
+                        if (neighbor != end && neighbor.Weight < 40)
                         {
                             outSteps.Add(new PushTileInFrontierStep(neighbor, 0));
                         }
