@@ -12,6 +12,15 @@ namespace PathFinding
     /// </summary>
     public class JPSPathFinder : PathFinderBase
     {
+        /// <summary>
+        /// 跳跃结果类，包含跳点位置和类型
+        /// </summary>
+        private class JumpResult
+        {
+            public Tile Tile { get; set; }
+            public JumpType Type { get; set; }
+        }
+
         public override List<Tile> FindPath(TileGrid grid, Tile start, Tile end, List<IVisualStep> outSteps)
         {
             // 添加起点和终点的可视化标记
@@ -81,31 +90,32 @@ namespace PathFinding
             foreach (var dir in directions)
             {
                 // 沿方向跳跃，寻找跳点
-                Tile jumpPoint = Jump(grid, current.Row, current.Col, dir.x, dir.y, end, outSteps);
+                JumpResult result = Jump(grid, current.Row, current.Col, dir.x, dir.y, end, outSteps);
 
-                if (jumpPoint == null) continue;
-                if (closedSet.Contains(jumpPoint)) continue;
+                if (result == null || result.Tile == null) continue;
+                if (closedSet.Contains(result.Tile)) continue;
                 
                 // 计算到达跳点的曼哈顿距离代价
-                int dx = Mathf.Abs(jumpPoint.Col - current.Col);
-                int dy = Mathf.Abs(jumpPoint.Row - current.Row);
+                int dx = Mathf.Abs(result.Tile.Col - current.Col);
+                int dy = Mathf.Abs(result.Tile.Row - current.Row);
                 int moveCost = dx + dy; // 只有直线移动，代价为曼哈顿距离
                     
-                int newCost = current.Cost + moveCost * jumpPoint.Weight;
+                int newCost = current.Cost + moveCost * result.Tile.Weight;
                 
                 // 如果找到更优路径
-                if (newCost < jumpPoint.Cost)
+                if (newCost < result.Tile.Cost)
                 {
-                    jumpPoint.Cost = newCost;
-                    jumpPoint.PrevTile = current;
+                    result.Tile.Cost = newCost;
+                    result.Tile.PrevTile = current;
+                    result.Tile.JumpType = result.Type; // ★ 保存跳点类型
                         
-                    openSet.Add(jumpPoint);
+                    openSet.Add(result.Tile);
 
                     // 可视化跳点
-                    if (jumpPoint != end)
+                    if (result.Tile != end)
                     {
-                        outSteps.Add(new PushTileInFrontierStep(jumpPoint, jumpPoint.Cost, 
-                            GetManhattanHeuristicCost(jumpPoint, end)));
+                        outSteps.Add(new PushTileInFrontierStep(result.Tile, result.Tile.Cost, 
+                            GetManhattanHeuristicCost(result.Tile, end)));
                     }
                 }
             }
@@ -113,34 +123,42 @@ namespace PathFinding
 
         /// <summary>
         /// 跳跃函数：沿指定方向寻找跳点（仅支持4个方向）
+        /// 返回JumpResult包含跳点和类型信息
         /// </summary>
-        private Tile Jump(TileGrid grid, int row, int col, int dx, int dy, Tile end, List<IVisualStep> outSteps)
+        private JumpResult Jump(TileGrid grid, int row, int col, int dx, int dy, Tile end, List<IVisualStep> outSteps)
         {
-            // 下一个位置
+            // 计算下一个位置
             int nextRow = row + dy;
             int nextCol = col + dx;
 
-            // 边界检查和障碍物检查
+            // 1. ForcedStop → 下一步是墙或边界，当前位置是停止点
             Tile next = grid.GetTile(nextRow, nextCol);
             if (next == null || !next.IsWalkable())
             {
-                return grid.GetTile(row, col);
+                Tile currentTile = grid.GetTile(row, col);
+                if (currentTile != null && currentTile.IsWalkable())
+                {
+                    return new JumpResult { Tile = currentTile, Type = JumpType.ForcedStop };
+                }
+                return null;
             }
 
-            // 到达终点
+            // 2. Goal → 到达终点
             if (next == end)
             {
-                return next;
+                return new JumpResult { Tile = next, Type = JumpType.Goal };
             }
 
-            // 检查是否有强制邻居
+            // 3. ForcedNeighbor → 检查是否有强制邻居
             if (HasForcedNeighbors(grid, nextRow, nextCol, dx, dy))
             {
-                return next; // 这是一个跳点
+                return new JumpResult { Tile = next, Type = JumpType.ForcedNeighbor };
             }
 
+            // 4. 可视化跳过的节点
             outSteps.Add(new JumpOverStep(next));
-            // 继续沿当前方向跳跃
+            
+            // 5. 继续沿当前方向跳跃
             return Jump(grid, nextRow, nextCol, dx, dy, end, outSteps);
         }
 
@@ -159,7 +177,7 @@ namespace PathFinding
                     return true;
                 }
 
-                // 下方被挡住 但下前方方可走
+                // 下方被挡住 但下前方可走
                 if (!IsWalkable(grid, row + 1, col) && IsWalkable(grid, row + 1, col + dx))
                 {
                     return true;
@@ -180,10 +198,6 @@ namespace PathFinding
                     return true;
                 }
             }
-            else
-            {
-                UnityEngine.Debug.LogError("JPS4 only supports 4 directions (no diagonals).");
-            }
 
             return false;
         }
@@ -191,7 +205,7 @@ namespace PathFinding
 
         /// <summary>
         /// 获取经过剪枝的邻居方向（仅4个方向）
-        /// JPS的核心优化：根据父节点方向进行对称路径剪枝
+        /// ★ 关键修正：根据跳点类型决定扩展方向
         /// Vector2Int(dx, dy): x=列变化(dx), y=行变化(dy)
         /// </summary>
         private List<Vector2Int> GetPrunedNeighbors(TileGrid grid, Tile current)
@@ -222,42 +236,40 @@ namespace PathFinding
                 {
                     neighbors.Add(new Vector2Int(1, 0)); // dx=+1, dy=0
                 }
+                return neighbors;
             }
-            else
+
+            // 计算父方向
+            int dx = Math.Sign(current.Col - parent.Col);
+            int dy = Math.Sign(current.Row - parent.Row);
+
+            // ★ 根据跳点类型决定扩展方向
+            switch (current.JumpType)
             {
-                var dx = Math.Sign(current.Col - parent.Col);
-                var dy = Math.Sign(current.Row - parent.Row);
-                // 水平移动（dx≠0, dy=0）
-                if (dx != 0 && dy == 0)
-                {
-                    // 增加上 下 两个方向
-                    if (IsWalkable(grid, current.Row - 1, current.Col))
+                case JumpType.NormalJump:
+                case JumpType.ForcedNeighbor:
+                case JumpType.Goal:
+                    // 正常跳点/强制邻居/目标点 → 继续沿父方向前进
+                    neighbors.Add(new Vector2Int(dx, dy));
+                    break;
+
+                case JumpType.ForcedStop:
+                    // 撞墙停止点 → 转向正交方向（垂直于当前方向）
+                    if (dx != 0) // 水平移动遇墙 → 转向上下
                     {
-                        neighbors.Add(new Vector2Int(0, -1));
+                        if (IsWalkable(grid, current.Row - 1, current.Col))
+                            neighbors.Add(new Vector2Int(0, -1)); // 上
+                        if (IsWalkable(grid, current.Row + 1, current.Col))
+                            neighbors.Add(new Vector2Int(0, 1));  // 下
                     }
-                    if (IsWalkable(grid, current.Row + 1, current.Col))
+                    else if (dy != 0) // 垂直移动遇墙 → 转向左右
                     {
-                        neighbors.Add(new Vector2Int(0, 1));
+                        if (IsWalkable(grid, current.Row, current.Col - 1))
+                            neighbors.Add(new Vector2Int(-1, 0)); // 左
+                        if (IsWalkable(grid, current.Row, current.Col + 1))
+                            neighbors.Add(new Vector2Int(1, 0));  // 右
                     }
-                }
-                // 垂直移动（dx=0, dy≠0）
-                else if (dx == 0 && dy != 0)
-                {
-                    // 增加左 右 两个方向
-                    if (IsWalkable(grid, current.Row, current.Col - 1))
-                    {
-                        neighbors.Add(new Vector2Int(-1, 0));
-                    }
-                    if (IsWalkable(grid, current.Row, current.Col + 1))
-                    {
-                        neighbors.Add(new Vector2Int(1, 0));
-                    }
-                }
-                else
-                {
-                    UnityEngine.Debug.LogError("JPS4 only supports 4 directions (no diagonals).");
-                }
-                neighbors.Add(new Vector2Int(dx, dy));
+                    break;
             }
 
             return neighbors;

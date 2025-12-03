@@ -3,6 +3,17 @@ using UnityEngine.UI;
 
 namespace PathFinding
 {
+    /// <summary>
+    /// 跳点类型枚举
+    /// </summary>
+    public enum JumpType
+    {
+        NormalJump,       // 普通跳跃
+        ForcedStop,       // 遇到墙前的停止点
+        ForcedNeighbor,   // 有强制邻居的跳点
+        Goal              // 目标点
+    }
+
     public class Tile
     {
         public TileGrid Grid { get; private set; }
@@ -11,6 +22,7 @@ namespace PathFinding
         public int Weight { get; set; }
         public int Cost { get; set; }
         public Tile PrevTile { get; set; }
+        public JumpType JumpType { get; set; }
 
         private GameObject _gameObject;
         private SpriteRenderer _spriteRenderer;
