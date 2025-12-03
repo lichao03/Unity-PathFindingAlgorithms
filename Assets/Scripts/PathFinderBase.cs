@@ -26,9 +26,19 @@ namespace PathFinding
             }
         }
 
-        protected float GetEuclideanHeuristicCost(Tile current, Tile end)
+        // 欧几里得启发式函数
+        protected virtual float GetEuclideanHeuristicCost(Tile current, Tile end)
         {
             float heuristicCost = (current.ToVector2() - end.ToVector2()).magnitude;
+            return heuristicCost;
+        }
+        
+        // 曼哈顿启发式函数
+        protected virtual float GetManhattanHeuristicCost(Tile current, Tile end)
+        {
+            var curVec = current.ToVector2();
+            var endVec = end.ToVector2();
+            float heuristicCost = Mathf.Abs(curVec.x - endVec.x) + Mathf.Abs(curVec.y - endVec.y);
             return heuristicCost;
         }
 

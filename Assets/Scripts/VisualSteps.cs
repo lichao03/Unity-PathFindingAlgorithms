@@ -56,16 +56,28 @@
     public class PushTileInFrontierStep : VisualStep
     {
         private int _cost;
+        private float _hx;
 
         public PushTileInFrontierStep(Tile tile, int cost) : base(tile)
         {
             _cost = cost;
         }
+        
+        public PushTileInFrontierStep(Tile tile, int cost, float hx) : base(tile)
+        {
+            _cost = cost;
+            _hx = hx;
+        }
 
         public override void Execute()
         {
             _tile.SetColor(_tile.Grid.TileColor_Frontier);
-            _tile.SetText(_cost != 0 ? _cost.ToString() : "");
+            
+            if(_hx > 0)
+                _tile.SetText(_cost != 0 ? $"{_cost}/{_hx:N0}\n{_cost+_hx:N0}" : "", 40);
+            else
+                _tile.SetText(_cost != 0 ? _cost.ToString() : "");
+            
         }
     }
 

@@ -392,7 +392,7 @@ namespace PathFinding
             foreach (var step in steps)
             {
                 // 等待用户操作（暂停或下一步）
-                yield return new WaitUntil(() => !_isPaused || _stepNext);
+                yield return new WaitUntil(() => !_isPaused || _stepNext||_currentStep<2);
                 
                 if (_stepNext)
                 {
@@ -605,7 +605,7 @@ namespace PathFinding
             startY += buttonHeight + buttonSpacing;
 
             // Greedy 算法按钮
-            if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), "贪婪优先搜索", buttonStyle))
+            if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), "贪婪最佳优先", buttonStyle))
             {
                 StartPathfinding(GetStartTile(), GetEndTile(), PathFinder.FindPath_GreedyBestFirstSearch);
             }

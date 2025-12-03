@@ -31,9 +31,9 @@ namespace PathFinding
             Comparison<Tile> heuristicComparison = (lhs, rhs) =>
             {
                 // 左节点的总代价 = 实际代价 + 启发式代价
-                float lhsCost = lhs.Cost + GetEuclideanHeuristicCost(lhs, end);
+                float lhsCost = lhs.Cost + GetManhattanHeuristicCost(lhs, end);
                 // 右节点的总代价 = 实际代价 + 启发式代价
-                float rhsCost = rhs.Cost + GetEuclideanHeuristicCost(rhs, end);
+                float rhsCost = rhs.Cost + GetManhattanHeuristicCost(rhs, end);
 
                 // 返回比较结果，小的优先级高
                 return lhsCost.CompareTo(rhsCost);
@@ -96,7 +96,7 @@ namespace PathFinding
                         // 可视化：显示邻居加入到边界队列中（排除终点）
                         if (neighbor != end)
                         {
-                            outSteps.Add(new PushTileInFrontierStep(neighbor, neighbor.Cost));
+                            outSteps.Add(new PushTileInFrontierStep(neighbor, neighbor.Cost, GetManhattanHeuristicCost(neighbor, end)));
                         }
                     }
                 }

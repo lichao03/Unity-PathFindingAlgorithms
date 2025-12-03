@@ -44,6 +44,12 @@ namespace PathFinding
         {
             _textComponent.text = text;
         }
+        
+        public void SetText(string text, int fontSize)
+        {
+            _textComponent.fontSize = fontSize;
+            _textComponent.text = text;
+        }
 
         public Vector2 ToVector2()
         {
