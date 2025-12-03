@@ -611,6 +611,13 @@ namespace PathFinding
             }
             startY += buttonHeight + buttonSpacing;
 
+            // JPS 算法按钮
+            if (GUI.Button(new Rect(startX, startY, buttonWidth, buttonHeight), "JPS 跳点搜索", buttonStyle))
+            {
+                StartPathfinding(GetStartTile(), GetEndTile(), PathFinder.FindPath_JPS);
+            }
+            startY += buttonHeight + buttonSpacing;
+
             GUI.enabled = true;
 
             // 重置按钮（始终可用）
