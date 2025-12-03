@@ -21,8 +21,23 @@ namespace PathFinding
             public JumpType Type { get; set; }
         }
 
+        /// <summary>
+        /// 跳跃缓存：key=(row, col, dx, dy)，避免重复计算相同位置和方向的跳跃结果
+        /// 大幅提升性能，特别是在复杂地图中
+        /// </summary>
+        private Dictionary<(int row, int col, int dx, int dy), JumpResult> jumpMemo;
+
+        /// <summary>
+        /// 已访问节点集合，用于 Early Termination 优化
+        /// </summary>
+        private HashSet<Tile> closedSet;
+
         public override List<Tile> FindPath(TileGrid grid, Tile start, Tile end, List<IVisualStep> outSteps)
         {
+            // ★ 初始化缓存和已访问集合
+            jumpMemo = new Dictionary<(int, int, int, int), JumpResult>();
+            closedSet = new HashSet<Tile>();
+
             // 添加起点和终点的可视化标记
             AddStartEndMarkers(start, end, outSteps);
 
@@ -46,8 +61,6 @@ namespace PathFinding
             MinHeap<Tile> openSet = new MinHeap<Tile>(heuristicComparison);
             openSet.Add(start);
 
-            HashSet<Tile> closedSet = new HashSet<Tile>();
-
             // 主循环
             while (openSet.Count > 0)
             {
@@ -68,7 +81,7 @@ namespace PathFinding
                 closedSet.Add(current);
 
                 // 识别后继跳点
-                IdentifySuccessors(grid, current, end, openSet, closedSet, outSteps);
+                IdentifySuccessors(grid, current, end, openSet, outSteps);
             }
 
             // 回溯路径
@@ -82,7 +95,7 @@ namespace PathFinding
         /// 识别当前节点的所有后继跳点
         /// </summary>
         private void IdentifySuccessors(TileGrid grid, Tile current, Tile end,
-            MinHeap<Tile> openSet, HashSet<Tile> closedSet, List<IVisualStep> outSteps)
+            MinHeap<Tile> openSet, List<IVisualStep> outSteps)
         {
             // 获取当前节点的搜索方向（经过剪枝）
             List<Vector2Int> directions = GetPrunedNeighbors(grid, current);
@@ -124,42 +137,61 @@ namespace PathFinding
         /// <summary>
         /// 跳跃函数：沿指定方向寻找跳点（仅支持4个方向）
         /// 返回JumpResult包含跳点和类型信息
+        /// ★ 优化：添加缓存和提前终止机制
         /// </summary>
         private JumpResult Jump(TileGrid grid, int row, int col, int dx, int dy, Tile end, List<IVisualStep> outSteps)
         {
+            // ★ 优化1：缓存查询 - 避免重复计算相同位置和方向的跳跃
+            var key = (row, col, dx, dy);
+            if (jumpMemo.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
             // 计算下一个位置
             int nextRow = row + dy;
             int nextCol = col + dx;
 
-            // 1. ForcedStop → 下一步是墙或边界，当前位置是停止点
+            // 1. Early Termination: 下一步是墙或边界，当前位置是停止点（ForcedStop）
             Tile next = grid.GetTile(nextRow, nextCol);
             if (next == null || !next.IsWalkable())
             {
                 Tile currentTile = grid.GetTile(row, col);
-                if (currentTile != null && currentTile.IsWalkable())
-                {
-                    return new JumpResult { Tile = currentTile, Type = JumpType.ForcedStop };
-                }
-                return null;
+                var result = new JumpResult { Tile = currentTile, Type = JumpType.ForcedStop };
+                jumpMemo[key] = result; // ★ 缓存结果
+                return result;
             }
 
-            // 2. Goal → 到达终点
+            // 2. Goal: 到达终点
             if (next == end)
             {
-                return new JumpResult { Tile = next, Type = JumpType.Goal };
+                var result = new JumpResult { Tile = next, Type = JumpType.Goal };
+                jumpMemo[key] = result; // ★ 缓存结果
+                return result;
             }
 
-            // 3. ForcedNeighbor → 检查是否有强制邻居
+            // 3. ForcedNeighbor: 检查是否有强制邻居
             if (HasForcedNeighbors(grid, nextRow, nextCol, dx, dy))
             {
-                return new JumpResult { Tile = next, Type = JumpType.ForcedNeighbor };
+                var result = new JumpResult { Tile = next, Type = JumpType.ForcedNeighbor };
+                jumpMemo[key] = result; // ★ 缓存结果
+                return result;
+            }
+
+            // ★ 优化2：Early Termination - 前方节点已探索过，且不可能产生新跳点
+            if (closedSet.Contains(next))
+            {
+                jumpMemo[key] = null; // ★ 缓存 null 结果
+                return null;
             }
 
             // 4. 可视化跳过的节点
             outSteps.Add(new JumpOverStep(next));
             
-            // 5. 继续沿当前方向跳跃
-            return Jump(grid, nextRow, nextCol, dx, dy, end, outSteps);
+            // 5. 继续沿当前方向跳跃（递归）
+            var jumpResult = Jump(grid, nextRow, nextCol, dx, dy, end, outSteps);
+            jumpMemo[key] = jumpResult; // ★ 缓存递归结果
+            return jumpResult;
         }
 
         /// <summary>
@@ -285,4 +317,3 @@ namespace PathFinding
         }
     }
 }
-
