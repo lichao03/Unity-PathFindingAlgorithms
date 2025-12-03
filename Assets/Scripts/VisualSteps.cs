@@ -100,4 +100,17 @@
             }
         }
     }
+    
+    public class JumpOverStep : VisualStep
+    {
+        public JumpOverStep(Tile tile) : base(tile)
+        {
+        }
+
+        public override void Execute()
+        {
+            _tile.SetColor(_tile.Grid.TileColor_Visited);
+            _tile.SetText("J");
+        }
+    }
 }
