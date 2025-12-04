@@ -330,7 +330,7 @@ namespace PathFinding
                 textMesh.color = AxisLabelColor;
                 textMesh.anchor = TextAnchor.MiddleCenter;
                 textMesh.alignment = TextAlignment.Center;
-                textMesh.characterSize = 0.1f;
+                textMesh.characterSize = 0.3f;
             }
 
             // 创建行号标签（左侧，Y轴）
@@ -346,7 +346,7 @@ namespace PathFinding
                 textMesh.color = AxisLabelColor;
                 textMesh.anchor = TextAnchor.MiddleCenter;
                 textMesh.alignment = TextAlignment.Center;
-                textMesh.characterSize = 0.1f;
+                textMesh.characterSize = 0.3f;
             }
         }
 
@@ -472,7 +472,7 @@ namespace PathFinding
                 step.Execute();
                 _currentStep++;
                 if (!_isPaused)
-                    yield return new WaitForSeconds(0.3f);// 可调整的延时
+                    yield return new WaitForSeconds(0.03f);// 可调整的延时
             }
             
             _isRunning = false;

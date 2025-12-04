@@ -13,19 +13,10 @@ namespace PathFinding
     public class JPSPathFinder : PathFinderBase
     {
         /// <summary>
-        /// 跳跃结果类，包含跳点位置和类型
-        /// </summary>
-        private class JumpResult
-        {
-            public Tile Tile { get; set; }
-            public JumpType Type { get; set; }
-        }
-
-        /// <summary>
         /// 跳跃缓存：key=(row, col, dx, dy)，避免重复计算相同位置和方向的跳跃结果
         /// 大幅提升性能，特别是在复杂地图中
         /// </summary>
-        private Dictionary<(int row, int col, int dx, int dy), JumpResult> jumpMemo;
+        private Dictionary<(int row, int col, int dx, int dy), Tile> jumpMemo;
 
         /// <summary>
         /// 已访问节点集合，用于 Early Termination 优化
@@ -35,7 +26,7 @@ namespace PathFinding
         public override List<Tile> FindPath(TileGrid grid, Tile start, Tile end, List<IVisualStep> outSteps)
         {
             // ★ 初始化缓存和已访问集合
-            jumpMemo = new Dictionary<(int, int, int, int), JumpResult>();
+            jumpMemo = new Dictionary<(int, int, int, int), Tile>();
             closedSet = new HashSet<Tile>();
 
             // 添加起点和终点的可视化标记
@@ -81,7 +72,10 @@ namespace PathFinding
                 closedSet.Add(current);
 
                 // 识别后继跳点
-                IdentifySuccessors(grid, current, end, openSet, outSteps);
+                if(IdentifySuccessors(grid, current, end, openSet, outSteps))
+                {
+                    break;
+                }
             }
 
             // 回溯路径
@@ -94,7 +88,7 @@ namespace PathFinding
         /// <summary>
         /// 识别当前节点的所有后继跳点
         /// </summary>
-        private void IdentifySuccessors(TileGrid grid, Tile current, Tile end,
+        private bool IdentifySuccessors(TileGrid grid, Tile current, Tile end,
             MinHeap<Tile> openSet, List<IVisualStep> outSteps)
         {
             // 获取当前节点的搜索方向（经过剪枝）
@@ -103,43 +97,48 @@ namespace PathFinding
             foreach (var dir in directions)
             {
                 // 沿方向跳跃，寻找跳点
-                JumpResult result = Jump(grid, current.Row, current.Col, dir.x, dir.y, end, outSteps);
+                Tile jumpPoint = Jump(grid, current.Row, current.Col, dir.x, dir.y, end, outSteps);
 
-                if (result == null || result.Tile == null) continue;
-                if (closedSet.Contains(result.Tile)) continue;
+                if (jumpPoint == null) continue;
+                if (closedSet.Contains(jumpPoint)) continue;
                 
                 // 计算到达跳点的曼哈顿距离代价
-                int dx = Mathf.Abs(result.Tile.Col - current.Col);
-                int dy = Mathf.Abs(result.Tile.Row - current.Row);
+                int dx = Mathf.Abs(jumpPoint.Col - current.Col);
+                int dy = Mathf.Abs(jumpPoint.Row - current.Row);
                 int moveCost = dx + dy; // 只有直线移动，代价为曼哈顿距离
                     
-                int newCost = current.Cost + moveCost * result.Tile.Weight;
+                int newCost = current.Cost + moveCost * jumpPoint.Weight;
                 
                 // 如果找到更优路径
-                if (newCost < result.Tile.Cost)
+                if (newCost < jumpPoint.Cost)
                 {
-                    result.Tile.Cost = newCost;
-                    result.Tile.PrevTile = current;
-                    result.Tile.JumpType = result.Type; // ★ 保存跳点类型
+                    jumpPoint.Cost = newCost;
+                    jumpPoint.PrevTile = current;
                         
-                    openSet.Add(result.Tile);
+                    openSet.Add(jumpPoint);
 
                     // 可视化跳点
-                    if (result.Tile != end)
+                    if (jumpPoint != end)
                     {
-                        outSteps.Add(new PushTileInFrontierStep(result.Tile, result.Tile.Cost, 
-                            GetManhattanHeuristicCost(result.Tile, end)));
+                        outSteps.Add(new PushTileInFrontierStep(jumpPoint, jumpPoint.Cost, 
+                            GetManhattanHeuristicCost(jumpPoint, end)));
+                    }
+                    else
+                    {
+                        return true;;
                     }
                 }
             }
+
+            return false;
         }
 
         /// <summary>
         /// 跳跃函数：沿指定方向寻找跳点（仅支持4个方向）
-        /// 返回JumpResult包含跳点和类型信息
+        /// 返回跳点Tile
         /// ★ 优化：添加缓存和提前终止机制
         /// </summary>
-        private JumpResult Jump(TileGrid grid, int row, int col, int dx, int dy, Tile end, List<IVisualStep> outSteps)
+        private Tile Jump(TileGrid grid, int row, int col, int dx, int dy, Tile end, List<IVisualStep> outSteps)
         {
             // ★ 优化1：缓存查询 - 避免重复计算相同位置和方向的跳跃
             var key = (row, col, dx, dy);
@@ -152,30 +151,27 @@ namespace PathFinding
             int nextRow = row + dy;
             int nextCol = col + dx;
 
-            // 1. Early Termination: 下一步是墙或边界，当前位置是停止点（ForcedStop）
+            // 1. Early Termination: 下一步是墙或边界，当前位置是停止点
             Tile next = grid.GetTile(nextRow, nextCol);
             if (next == null || !next.IsWalkable())
             {
                 Tile currentTile = grid.GetTile(row, col);
-                var result = new JumpResult { Tile = currentTile, Type = JumpType.ForcedStop };
-                jumpMemo[key] = result; // ★ 缓存结果
-                return result;
+                jumpMemo[key] = currentTile; // ★ 缓存结果
+                return currentTile;
             }
 
             // 2. Goal: 到达终点
             if (next == end)
             {
-                var result = new JumpResult { Tile = next, Type = JumpType.Goal };
-                jumpMemo[key] = result; // ★ 缓存结果
-                return result;
+                jumpMemo[key] = next; // ★ 缓存结果
+                return next;
             }
 
             // 3. ForcedNeighbor: 检查是否有强制邻居
             if (HasForcedNeighbors(grid, nextRow, nextCol, dx, dy))
             {
-                var result = new JumpResult { Tile = next, Type = JumpType.ForcedNeighbor };
-                jumpMemo[key] = result; // ★ 缓存结果
-                return result;
+                jumpMemo[key] = next; // ★ 缓存结果
+                return next;
             }
 
             // ★ 优化2：Early Termination - 前方节点已探索过，且不可能产生新跳点
@@ -189,9 +185,9 @@ namespace PathFinding
             outSteps.Add(new JumpOverStep(next));
             
             // 5. 继续沿当前方向跳跃（递归）
-            var jumpResult = Jump(grid, nextRow, nextCol, dx, dy, end, outSteps);
-            jumpMemo[key] = jumpResult; // ★ 缓存递归结果
-            return jumpResult;
+            var jumpPoint = Jump(grid, nextRow, nextCol, dx, dy, end, outSteps);
+            jumpMemo[key] = jumpPoint; // ★ 缓存递归结果
+            return jumpPoint;
         }
 
         /// <summary>
@@ -203,14 +199,14 @@ namespace PathFinding
             // 水平移动（dx≠0, dy=0）
             if (dx != 0 && dy == 0)
             {
-                // 上方被挡住 但上前方可走
-                if (!IsWalkable(grid, row - 1, col) && IsWalkable(grid, row - 1, col + dx))
+                // 上方可走，上后方不可走
+                if (IsWalkable(grid, row - 1, col) && !IsWalkable(grid, row - 1, col - dx))
                 {
                     return true;
                 }
-
-                // 下方被挡住 但下前方可走
-                if (!IsWalkable(grid, row + 1, col) && IsWalkable(grid, row + 1, col + dx))
+                
+                // 下方可走，下后方不可走
+                if (IsWalkable(grid, row + 1, col) && !IsWalkable(grid, row + 1, col - dx))
                 {
                     return true;
                 }
@@ -218,14 +214,13 @@ namespace PathFinding
             // 垂直移动（dx=0, dy≠0）
             else if (dx == 0 && dy != 0)
             {
-                // 左方被挡住 但左前方可走
-                if (!IsWalkable(grid, row, col - 1) && IsWalkable(grid, row + dy, col - 1))
+                // 左方可走，左后方不可走
+                if (IsWalkable(grid, row, col - 1) && !IsWalkable(grid, row - dy, col - 1))
                 {
                     return true;
                 }
-
-                // 右方被挡住 但右前方可走
-                if (!IsWalkable(grid, row, col + 1) && IsWalkable(grid, row + dy, col + 1))
+                // 右方可走，右后方不可走
+                if (IsWalkable(grid, row, col + 1) && !IsWalkable(grid, row - dy, col + 1))
                 {
                     return true;
                 }
@@ -275,33 +270,36 @@ namespace PathFinding
             int dx = Math.Sign(current.Col - parent.Col);
             int dy = Math.Sign(current.Row - parent.Row);
 
-            // ★ 根据跳点类型决定扩展方向
-            switch (current.JumpType)
-            {
-                case JumpType.NormalJump:
-                case JumpType.ForcedNeighbor:
-                case JumpType.Goal:
-                    // 正常跳点/强制邻居/目标点 → 继续沿父方向前进
-                    neighbors.Add(new Vector2Int(dx, dy));
-                    break;
+            // 检查前进方向和两个垂直方向，如果可行走则加入
 
-                case JumpType.ForcedStop:
-                    // 撞墙停止点 → 转向正交方向（垂直于当前方向）
-                    if (dx != 0) // 水平移动遇墙 → 转向上下
-                    {
-                        if (IsWalkable(grid, current.Row - 1, current.Col))
-                            neighbors.Add(new Vector2Int(0, -1)); // 上
-                        if (IsWalkable(grid, current.Row + 1, current.Col))
-                            neighbors.Add(new Vector2Int(0, 1));  // 下
-                    }
-                    else if (dy != 0) // 垂直移动遇墙 → 转向左右
-                    {
-                        if (IsWalkable(grid, current.Row, current.Col - 1))
-                            neighbors.Add(new Vector2Int(-1, 0)); // 左
-                        if (IsWalkable(grid, current.Row, current.Col + 1))
-                            neighbors.Add(new Vector2Int(1, 0));  // 右
-                    }
-                    break;
+            // 垂直方向1
+            if (dx != 0) // 水平移动时检查上下
+            {
+                if (IsWalkable(grid, current.Row - 1, current.Col))
+                {
+                    neighbors.Add(new Vector2Int(0, -1)); // 上
+                }
+                if (IsWalkable(grid, current.Row + 1, current.Col))
+                {
+                    neighbors.Add(new Vector2Int(0, 1)); // 下
+                }
+            }
+            else if (dy != 0) // 垂直移动时检查左右
+            {
+                if (IsWalkable(grid, current.Row, current.Col - 1))
+                {
+                    neighbors.Add(new Vector2Int(-1, 0)); // 左
+                }
+                if (IsWalkable(grid, current.Row, current.Col + 1))
+                { 
+                    neighbors.Add(new Vector2Int(1, 0)); // 右
+                }
+            }
+            
+            // 前进方向
+            if (IsWalkable(grid, current.Row + dy, current.Col + dx))
+            {                
+                neighbors.Add(new Vector2Int(dx, dy));
             }
 
             return neighbors;
